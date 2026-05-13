@@ -55,7 +55,10 @@
                     <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                         <i class="fa-solid fa-lock text-gray-400"></i>
                     </div>
-                    <input type="password" id="password" class="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:border-transparent theme-focus-ring transition" placeholder="••••••••" required>
+                    <input type="password" id="password" class="w-full pl-11 pr-12 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:border-transparent theme-focus-ring transition" placeholder="••••••••" required>
+                    <button type="button" onclick="togglePasswordVisibility('password', 'password-toggle-icon')" class="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600 transition">
+                        <i id="password-toggle-icon" class="fa-regular fa-eye"></i>
+                    </button>
                 </div>
                 <div class="flex justify-end mt-2">
                     <a href="#" onclick="handleForgotPassword(event)" class="text-sm font-semibold text-[var(--primary)] hover:underline">Forgot Password?</a>
@@ -112,6 +115,20 @@
                 el.classList.remove('focus:ring-green-500', 'focus:ring-blue-500');
                 el.classList.add(theme === 'blue' ? 'focus:ring-blue-500' : 'focus:ring-green-500');
             });
+        }
+
+        function togglePasswordVisibility(inputId, iconId) {
+            const input = document.getElementById(inputId);
+            const icon = document.getElementById(iconId);
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.classList.remove('fa-eye');
+                icon.classList.add('fa-eye-slash');
+            } else {
+                input.type = 'password';
+                icon.classList.remove('fa-eye-slash');
+                icon.classList.add('fa-eye');
+            }
         }
 
         async function handleForgotPassword(e) {
