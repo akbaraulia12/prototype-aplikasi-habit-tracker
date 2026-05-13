@@ -20,6 +20,9 @@
                         },
                         blue: {
                             500: '#5BA4C9',
+                        },
+                        navy: {
+                            500: '#4A5FB3',
                         }
                     }
                 }
@@ -31,7 +34,14 @@
     
     <main class="flex-1 overflow-y-auto pb-24 relative z-10 no-scrollbar">
     <!-- Deep immersive background gradient matching reference UI -->
-    <div id="theme-bg-gradient" class="absolute top-0 left-0 right-0 h-[400px] z-0 pointer-events-none transition-all duration-700"></div>
+    <div id="theme-bg-gradient" class="absolute top-0 left-0 right-0 h-[500px] z-0 pointer-events-none transition-all duration-700"></div>
+    
+    <!-- Decorative Sphere Elements -->
+    <div class="decorative-sphere sphere-large" style="top: -80px; right: -60px; opacity: 0.12;"></div>
+    <div class="decorative-sphere sphere-medium" style="top: 120px; left: -40px; opacity: 0.1; animation-delay: 2s;"></div>
+    <div class="decorative-sphere sphere-small" style="bottom: 300px; right: 20px; opacity: 0.08; animation-delay: 1s;"></div>
+    <div class="decorative-sphere sphere-large" style="bottom: 150px; left: -100px; opacity: 0.09; animation-delay: 3s;"></div>
+    
     <!-- Header -->
     <header class="px-6 pt-8 pb-4 flex justify-between items-center animate-slide-up relative z-20">
         <div class="flex items-center gap-3">
@@ -101,7 +111,7 @@
     </section>
 
     <!-- Date & Time Section -->
-    <section class="mt-8 animate-slide-up delay-200 w-full" style="overflow: visible;">
+    <section class="mt-8 animate-slide-up delay-200 w-full relative z-20" style="overflow: visible; background: linear-gradient(180deg, transparent 0%, var(--bg-color) 60%);">
         <div class="px-6 flex justify-between items-center mb-4">
             <h2 class="text-xl font-bold text-gray-900">Date & Time</h2>
         </div>

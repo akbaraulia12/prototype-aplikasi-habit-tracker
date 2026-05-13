@@ -79,14 +79,14 @@
             </button>
 
             <!-- Theme Toggle -->
-            <button onclick="toggleTheme()" class="w-full px-5 py-4 flex items-center justify-between hover:bg-gray-50 active:bg-gray-100 transition-all active:scale-[0.98] text-left group border-b border-gray-100">
+            <button onclick="showThemeModal()" class="w-full px-5 py-4 flex items-center justify-between hover:bg-gray-50 active:bg-gray-100 transition-all active:scale-[0.98] text-left group border-b border-gray-100">
                 <div class="flex items-center gap-4">
                     <div class="w-10 h-10 rounded-full bg-green-50 text-green-500 flex items-center justify-center text-lg group-hover:scale-110 transition-transform">
                         <i class="fa-solid fa-palette"></i>
                     </div>
                     <div>
                         <h4 class="text-base font-semibold text-gray-900">App Theme</h4>
-                        <p class="text-xs font-medium text-gray-500">Switch color mode</p>
+                        <p class="text-xs font-medium text-gray-500">Choose your color mode</p>
                     </div>
                 </div>
                 <i class="fa-solid fa-chevron-right text-gray-300"></i>
@@ -152,6 +152,121 @@
     <script src="../js/app.js"></script>
     <script>
         let _currentUser = null;
+
+        // === Theme Selector Modal ===
+        function showThemeModal() {
+            let modal = document.getElementById('theme-modal');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'theme-modal';
+                modal.className = 'fixed inset-0 bg-gray-900/40 z-[120] flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-300 px-6 backdrop-blur-sm';
+                modal.innerHTML = `
+                    <div class="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl transform scale-95 transition-transform duration-300 popup-content" id="theme-modal-box">
+                        <h3 class="text-xl font-bold text-gray-900 text-center mb-6">Choose Your Theme</h3>
+                        
+                        <div class="space-y-3">
+                            <!-- Green Theme -->
+                            <button type="button" class="theme-option w-full p-4 rounded-2xl border-2 transition-all hover:scale-105 active:scale-95" data-theme="green" style="border-color: #10B981; background-color: rgba(16, 185, 129, 0.05);">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-12 h-12 rounded-full flex items-center justify-center text-white" style="background: linear-gradient(135deg, #10B981 0%, #6ee7b7 100%);">
+                                        <i class="fa-solid fa-leaf text-lg"></i>
+                                    </div>
+                                    <div class="text-left">
+                                        <h4 class="font-bold text-gray-900">Fresh Green</h4>
+                                        <p class="text-xs text-gray-500">Calm & Natural</p>
+                                    </div>
+                                    <i class="fa-solid fa-check ml-auto text-lg text-green-500 theme-check-green hidden"></i>
+                                </div>
+                            </button>
+
+                            <!-- Blue Theme -->
+                            <button type="button" class="theme-option w-full p-4 rounded-2xl border-2 transition-all hover:scale-105 active:scale-95" data-theme="blue" style="border-color: #5BA4C9; background-color: rgba(91, 164, 201, 0.05);">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-12 h-12 rounded-full flex items-center justify-center text-white" style="background: linear-gradient(135deg, #5BA4C9 0%, #7DD3FC 100%);">
+                                        <i class="fa-solid fa-droplet text-lg"></i>
+                                    </div>
+                                    <div class="text-left">
+                                        <h4 class="font-bold text-gray-900">Sky Blue</h4>
+                                        <p class="text-xs text-gray-500">Light & Fresh</p>
+                                    </div>
+                                    <i class="fa-solid fa-check ml-auto text-lg text-blue-500 theme-check-blue hidden"></i>
+                                </div>
+                            </button>
+
+                            <!-- Navy Theme -->
+                            <button type="button" class="theme-option w-full p-4 rounded-2xl border-2 transition-all hover:scale-105 active:scale-95" data-theme="navy" style="border-color: #5B7FBD; background-color: rgba(91, 127, 189, 0.05);">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-12 h-12 rounded-full flex items-center justify-center text-white" style="background: linear-gradient(135deg, #3D5A9F 0%, #5B7FBD 100%);">
+                                        <i class="fa-solid fa-moon text-lg"></i>
+                                    </div>
+                                    <div class="text-left">
+                                        <h4 class="font-bold text-gray-900">Premium Navy</h4>
+                                        <p class="text-xs text-gray-500">Professional & Modern</p>
+                                    </div>
+                                    <i class="fa-solid fa-check ml-auto text-lg text-indigo-600 theme-check-navy hidden"></i>
+                                </div>
+                            </button>
+                        </div>
+
+                        <button type="button" class="w-full mt-6 py-3 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition-colors" id="theme-modal-close">Done</button>
+                    </div>
+                `;
+                document.body.appendChild(modal);
+            }
+
+            const currentTheme = document.documentElement.getAttribute('data-theme') || 'green';
+            
+            // Update check marks
+            document.querySelectorAll('.theme-check-green, .theme-check-blue, .theme-check-navy').forEach(el => el.classList.add('hidden'));
+            if (currentTheme === 'green') document.querySelector('.theme-check-green')?.classList.remove('hidden');
+            else if (currentTheme === 'blue') document.querySelector('.theme-check-blue')?.classList.remove('hidden');
+            else if (currentTheme === 'navy') document.querySelector('.theme-check-navy')?.classList.remove('hidden');
+
+            // Theme option handlers
+            const themeOptions = document.querySelectorAll('.theme-option');
+            themeOptions.forEach(option => {
+                option.onclick = (e) => {
+                    const selectedTheme = option.getAttribute('data-theme');
+                    document.documentElement.setAttribute('data-theme', selectedTheme);
+                    localStorage.setItem('theme', selectedTheme);
+                    
+                    // Update gradient
+                    const bgGradient = document.getElementById('theme-bg-gradient');
+                    if (bgGradient) {
+                        if (selectedTheme === 'blue') {
+                            bgGradient.style.background = 'linear-gradient(180deg, #4480ba 0%, #acc9e6 50%, rgba(255,255,255,0) 100%)'; 
+                        } else if (selectedTheme === 'navy') {
+                            bgGradient.style.background = 'linear-gradient(135deg, #1A2652 0%, #3D5A9F 25%, #5B7FBD 50%, #8AAFDB 75%, rgba(138, 175, 219, 0.2) 100%)';
+                        } else {
+                            bgGradient.style.background = 'linear-gradient(180deg, #10B981 0%, #6ee7b7 50%, rgba(255,255,255,0) 100%)';
+                        }
+                    }
+                    
+                    // Update check marks
+                    document.querySelectorAll('.theme-check-green, .theme-check-blue, .theme-check-navy').forEach(el => el.classList.add('hidden'));
+                    if (selectedTheme === 'green') document.querySelector('.theme-check-green')?.classList.remove('hidden');
+                    else if (selectedTheme === 'blue') document.querySelector('.theme-check-blue')?.classList.remove('hidden');
+                    else if (selectedTheme === 'navy') document.querySelector('.theme-check-navy')?.classList.remove('hidden');
+                    
+                    // Dispatch event
+                    document.dispatchEvent(new CustomEvent('themeChanged', { detail: { theme: selectedTheme } }));
+                    
+                    showToast(`Theme changed to ${selectedTheme.charAt(0).toUpperCase() + selectedTheme.slice(1)}!`);
+                };
+            });
+
+            const closeBtn = document.getElementById('theme-modal-close');
+            closeBtn.onclick = () => {
+                modal.classList.add('opacity-0', 'pointer-events-none');
+                document.getElementById('theme-modal-box').classList.remove('scale-100');
+                document.getElementById('theme-modal-box').classList.add('scale-95');
+            };
+
+            // Open modal with animation
+            modal.classList.remove('opacity-0', 'pointer-events-none');
+            document.getElementById('theme-modal-box').classList.remove('scale-95');
+            document.getElementById('theme-modal-box').classList.add('scale-100');
+        }
 
         // === Edit Username Modal System ===
         function showEditUsernameModal(currentUsername) {

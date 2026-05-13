@@ -13,7 +13,7 @@
 
 [data-theme="blue"] {
   /* Blue Theme */
-  --primary: #5BA4C9; /* Adjusting closer to the reference image */
+  --primary: #5BA4C9;
   --primary-light: #E0F2FE;
   --primary-dark: #0284C7;
   --bg-color: #FAFAFA;
@@ -21,6 +21,18 @@
   --text-main: #111827;
   --text-muted: #6B7280;
   --accent: #7DD3FC;
+}
+
+[data-theme="navy"] {
+  /* Premium Blue Navy Theme - Updated */
+  --primary: #5B7FBD;
+  --primary-light: #DDE8F7;
+  --primary-dark: #3D5A9F;
+  --bg-color: #F8FAFB;
+  --card-bg: #FFFFFF;
+  --text-main: #1A2652;
+  --text-muted: #5A677F;
+  --accent: #7B9DD9;
 }
 
 html, body {
@@ -105,6 +117,43 @@ html, body {
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+/* Decorative Sphere/Blob Elements */
+.decorative-sphere {
+  position: absolute;
+  border-radius: 50%;
+  opacity: 0.15;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  filter: blur(2px);
+  animation: float 6s ease-in-out infinite;
+}
+
+.sphere-large {
+  width: 200px;
+  height: 200px;
+  background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.8), rgba(255,255,255,0.1));
+  box-shadow: inset -30px -30px 60px rgba(0,0,0,0.2);
+}
+
+.sphere-medium {
+  width: 120px;
+  height: 120px;
+  background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.6), rgba(255,255,255,0.1));
+  box-shadow: inset -20px -20px 40px rgba(0,0,0,0.15);
+}
+
+.sphere-small {
+  width: 80px;
+  height: 80px;
+  background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.5), rgba(255,255,255,0.05));
+  box-shadow: inset -15px -15px 30px rgba(0,0,0,0.1);
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-20px); }
 }
 
 /* Day/Date Selector */
@@ -334,4 +383,26 @@ input[type="number"].cal-num-input::-webkit-inner-spin-button {
 
 #edit-username-cancel:active {
   transform: scale(0.98);
+}
+/* Theme Modal Styling */
+.theme-option {
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.theme-option:hover {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+}
+
+.theme-option:active {
+  transform: scale(0.98);
+}
+
+.theme-check-green,
+.theme-check-blue,
+.theme-check-navy {
+  animation: scaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }

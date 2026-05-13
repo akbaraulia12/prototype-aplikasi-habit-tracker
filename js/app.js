@@ -51,16 +51,26 @@ function updateGradientColor(theme) {
     if (bgGradient) {
          if (theme === 'blue') {
              bgGradient.style.background = 'linear-gradient(180deg, #4480ba 0%, #acc9e6 50%, rgba(255,255,255,0) 100%)'; 
+         } else if (theme === 'navy') {
+             bgGradient.style.background = 'linear-gradient(135deg, #1A2652 0%, #3D5A9F 25%, #5B7FBD 50%, #8AAFDB 75%, rgba(138, 175, 219, 0.2) 100%)';
          } else {
              bgGradient.style.background = 'linear-gradient(180deg, #10B981 0%, #6ee7b7 50%, rgba(255,255,255,0) 100%)';
          }
     }
 }
 
-// Toggle theme between green and blue
+// Toggle theme between green, blue, and navy
 function toggleTheme() {
     const currentTheme = document.documentElement.getAttribute('data-theme') || 'green';
-    const newTheme = currentTheme === 'green' ? 'blue' : 'green';
+    let newTheme;
+    
+    if (currentTheme === 'green') {
+        newTheme = 'blue';
+    } else if (currentTheme === 'blue') {
+        newTheme = 'navy';
+    } else {
+        newTheme = 'green';
+    }
     
     document.documentElement.setAttribute('data-theme', newTheme);
     localStorage.setItem('theme', newTheme);
