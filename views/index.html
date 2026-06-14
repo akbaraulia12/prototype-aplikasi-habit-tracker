@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="../css/tailwind.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
+    <script src="../js/habit-flow-popup.js"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -58,9 +59,14 @@
                 </div>
             </div>
         </div>
-        <button id="bell-notification-btn" onclick="openNotificationModal()" class="w-10 h-10 rounded-full bg-white/20 backdrop-blur-md text-white border border-white/30 flex items-center justify-center hover:bg-white/30 transition shadow-sm">
-            <i class="fa-regular fa-bell"></i>
-        </button>
+        <div class="flex items-center gap-2">
+            <button onclick="habitFlowPopup.open()" class="w-10 h-10 rounded-full bg-white/20 backdrop-blur-md text-white border border-white/30 flex items-center justify-center hover:bg-white/30 transition shadow-sm" title="Panduan Habit Flow">
+                <i class="fa-solid fa-circle-question"></i>
+            </button>
+            <button id="bell-notification-btn" onclick="openNotificationModal()" class="w-10 h-10 rounded-full bg-white/20 backdrop-blur-md text-white border border-white/30 flex items-center justify-center hover:bg-white/30 transition shadow-sm">
+                <i class="fa-regular fa-bell"></i>
+            </button>
+        </div>
     </header>
 
     <!-- Account Status Hero (Glassmorphism) -->
