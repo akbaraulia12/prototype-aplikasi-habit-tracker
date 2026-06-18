@@ -27,16 +27,66 @@
   --confirm-blue: #3B82F6;
 }
 
-html,
+html {
+  background-color: #A7F3D0; /* Light mint green outer background */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+}
+
+[data-theme="dark"] html {
+  background-color: #064E3B;
+}
+
 body {
   font-family: 'Inter', sans-serif;
-  background-color: var(--bg-color);
+  background-color: #C6F2DE; /* Main content background */
   color: var(--text-main);
   transition: background-color 0.4s ease, color 0.4s ease;
   overflow-x: hidden;
-  width: 100vw;
-  max-width: 100%;
+  width: 100%;
+  max-width: 1400px; /* Desktop app container width */
+  height: 90vh; /* App container height */
+  margin: 0 auto;
+  position: relative;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  border-radius: 2rem;
+  display: flex; /* Flex to hold sidebar and main content */
+  overflow: hidden; /* Hide anything outside rounded corners */
+  transform: translateZ(0);
   -webkit-tap-highlight-color: transparent;
+}
+
+[data-theme="dark"] body {
+  background-color: #111827;
+}
+
+/* Sidebar Styles */
+.desktop-sidebar {
+  width: 100px;
+  background-color: #FFFFFF;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2rem 0;
+  border-top-left-radius: 2rem;
+  border-bottom-left-radius: 2rem;
+  box-shadow: 2px 0 10px rgba(0,0,0,0.02);
+  z-index: 50;
+  flex-shrink: 0;
+}
+
+[data-theme="dark"] .desktop-sidebar {
+  background-color: #1F2937;
+}
+
+.main-content-wrapper {
+  flex: 1;
+  position: relative;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background-color: transparent;
 }
 
 /* Animations */
