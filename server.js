@@ -43,35 +43,45 @@ app.post('/api/register', async (req, res) => {
         const saltRounds = 10;
         const passwordHash = await bcrypt.hash(password, saltRounds);
 
-        // 3. Buat ID acak unik (UUID)
-        const userId = crypto.randomUUID();
+        // 3. Buat ID berurutan (0001, 0002, dst)
+        const dbPromise = db.promise();
+        const [rows] = await dbPromise.query("SELECT id FROM users ORDER BY CAST(id AS UNSIGNED) DESC LIMIT 1");
+
+        let nextIdNumber = 1;
+        if (rows.length > 0 && rows[0].id) {
+            const lastId = parseInt(rows[0].id, 4);
+            if (!isNaN(lastId)) {
+                nextIdNumber = lastId + 1;
+            }
+        }
+
+        const userId = String(nextIdNumber).padStart(4, '0');
 
         // 4. Query INSERT ke tabel users
         const query = "INSERT INTO users (id, username, full_name, email, password_hash) VALUES (?, ?, ?, ?, ?)";
 
         // 5. Eksekusi ke database Laragon
-        db.query(query, [userId, username, fullName, email, passwordHash], (err, result) => {
-            if (err) {
-                console.error('=================== MYSQL ERROR ===================');
-                console.error(err);
-                console.error('===================================================');
-
-                // Cek jika email/username sudah dipakai
-                if (err.code === 'ER_DUP_ENTRY') {
-                    if (err.sqlMessage.includes('email')) {
-                        return res.status(409).json({ success: false, message: 'Email sudah terdaftar.' });
-                    }
-                    if (err.sqlMessage.includes('username')) {
-                        return res.status(409).json({ success: false, message: 'Username sudah digunakan.' });
-                    }
-                }
-
-                return res.status(500).json({ success: false, message: 'Gagal menyimpan data ke database.' });
-            }
-
+        try {
+            await dbPromise.query(query, [userId, username, fullName, email, passwordHash]);
             console.log('✅ User baru berhasil disimpan ke database Laragon!');
             return res.status(201).json({ success: true, message: 'Akun berhasil terdaftar!' });
-        });
+        } catch (insertErr) {
+            console.error('=================== MYSQL ERROR ===================');
+            console.error(insertErr);
+            console.error('===================================================');
+
+            // Cek jika email/username sudah dipakai
+            if (insertErr.code === 'ER_DUP_ENTRY') {
+                if (insertErr.sqlMessage.includes('email')) {
+                    return res.status(409).json({ success: false, message: 'Email sudah terdaftar.' });
+                }
+                if (insertErr.sqlMessage.includes('username')) {
+                    return res.status(409).json({ success: false, message: 'Username sudah digunakan.' });
+                }
+            }
+
+            return res.status(500).json({ success: false, message: 'Gagal menyimpan data ke database.' });
+        }
 
     } catch (error) {
         console.error('Server error:', error);
