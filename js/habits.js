@@ -1,15 +1,10 @@
-// ===== habits.js — Shared Habit Data Layer (Supabase-first) =====
-// Uses Supabase as source of truth with localStorage as cache.
-// supabaseClient is defined in app.js (loaded after this file).
+// ===== habits.js — Shared Habit Data Layer (MySQL-first) =====
+// Source of truth: MySQL via /api/* endpoints.
+// localStorage digunakan sebagai cache/fallback agar UI tetap responsif.
 
 // --- Select mode state ---
 let _selectMode = false;
 let _selectedIds = new Set();
-
-// --- Helper to safely get the supabase client ---
-function getClient() {
-    return window.supabaseClient || null;
-}
 
 // --- Date helper for local timezone ---
 function getLocalDateString(dateObj = new Date()) {
@@ -206,197 +201,127 @@ function formatTime(totalSeconds) {
     return h > 0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
 }
 
-// --- Supabase Upsert for habit_logs ---
+// --- MySQL Upsert untuk habit_logs (menggantikan Supabase upsertHabitLog) ---
+// Memanggil toggleHabitLogMySQL dari mysql-api.js jika tersedia.
+// Dipanggil saat: setCompletion(), setNumericValue(), timer pause.
 async function upsertHabitLog(habitId, dateStr, fields) {
-    const client = getClient();
-    if (!client) return;
-    try {
-        const { data: { session } } = await client.auth.getSession();
-        if (!session) return;
-
-        const payload = {
-            user_id: session.user.id,
-            habit_id: habitId,
-            log_date: dateStr,
-            updated_at: new Date().toISOString(),
-            ...fields
-        };
-
-        // Fallback: manually check if a log exists for this specific habit and date
-        // This avoids issues if the database lacks a composite unique constraint on (habit_id, log_date).
-        const { data: existing } = await client.from('habit_logs')
-            .select('id')
-            .eq('habit_id', habitId)
-            .eq('log_date', dateStr)
-            .eq('user_id', session.user.id)
-            .maybeSingle();
-
-        if (existing && existing.id) {
-            await client.from('habit_logs')
-                .update(payload)
-                .eq('id', existing.id);
-        } else {
-            await client.from('habit_logs')
-                .insert(payload);
+    // Jika mysql-api.js belum dimuat, skip (offline mode)
+    if (typeof toggleHabitLogMySQL !== 'function') return;
+    // Hanya toggle jika field 'completed' ada
+    if (fields && typeof fields.completed !== 'undefined') {
+        try {
+            await toggleHabitLogMySQL(habitId, dateStr);
+        } catch (err) {
+            console.warn('upsertHabitLog (MySQL) warning:', err);
         }
-    } catch (err) {
-        console.error('habit_logs upsert error:', err);
     }
 }
 
-// --- Supabase Sync: Fetch habits and logs on page load ---
+// --- Sync habits dari MySQL (menggantikan syncHabitsFromSupabase) ---
+// Mengambil semua habit + log untuk tanggal tertentu via GET /api/habits-with-logs
 async function syncHabitsFromSupabase() {
-    const client = getClient();
-    if (!client) return;
+    // Cek apakah mysql-api.js tersedia dan user sudah login MySQL
+    if (typeof fetchHabitsWithLogs !== 'function') {
+        console.warn('mysql-api.js belum dimuat, skip sync.');
+        return;
+    }
+    if (typeof getMysqlUserId !== 'function' || !getMysqlUserId()) {
+        console.warn('User tidak login MySQL, skip sync.');
+        return;
+    }
 
+    const today = getLocalDateString();
     try {
-        const { data: { session } } = await client.auth.getSession();
-        if (!session) return;
+        const result = await fetchHabitsWithLogs(today);
+        if (!result.success) return;
 
-        // Fetch habits from user_habits
-        const { data: habits, error } = await client
-            .from('user_habits')
-            .select('*')
-            .eq('user_id', session.user.id)
-            .order('created_at', { ascending: true });
-
-        if (error) {
-            console.error('Error fetching habits:', error);
-            return;
-        }
-
-        // Transform to app format and cache in localStorage
-        const appHabits = (habits || []).map(h => ({
-            id: h.id,
-            name: h.name,
-            goals: h.goals || '',
-            description: h.description || '',
-            category: h.category || 'study',
-            iconHtml: h.icon_html || '<i class="fa-solid fa-star"></i>',
-            evaluation: h.evaluation || 'checklist',
-            unit: h.unit || ''
+        // Transform ke format cache lokal
+        const appHabits = result.habits.map(h => ({
+            id         : h.habit_id,
+            name       : h.habit_name,
+            description: h.habit_description || '',
+            category   : h.habit_category || 'other',
+            iconHtml   : '<i class="fa-solid fa-star"></i>',
+            evaluation : 'checklist',
+            unit       : ''
         }));
-
         saveHabitsCache(appHabits);
 
-        // Fetch habit_logs for completions
-        const { data: logs, error: logsError } = await client
-            .from('habit_logs')
-            .select('*')
-            .eq('user_id', session.user.id);
-
-        if (logsError) {
-            console.error('Error fetching habit logs:', logsError);
-            return;
-        }
-
-        // Build completions, numeric values, and timer elapsed from logs
-        const completions = {};
-        const numericValues = {};
-        const timerStates = getTimerStates(); // preserve running state
-
-        (logs || []).forEach(log => {
-            const dateStr = log.log_date;
-            if (!completions[dateStr]) completions[dateStr] = {};
-            if (!numericValues[dateStr]) numericValues[dateStr] = {};
-
-            completions[dateStr][log.habit_id] = log.completed;
-
-            if (log.numeric_value > 0) {
-                numericValues[dateStr][log.habit_id] = log.numeric_value;
-            }
-
-            if (log.timer_elapsed > 0) {
-                // Only set elapsed from DB if timer isn't currently running locally
-                if (!timerStates[log.habit_id] || !timerStates[log.habit_id].running) {
-                    timerStates[log.habit_id] = {
-                        running: false,
-                        elapsed: log.timer_elapsed,
-                        lastTick: null
-                    };
-                }
-            }
+        // Build completions dari status log
+        const completions = getCompletions();
+        result.habits.forEach(h => {
+            if (!completions[today]) completions[today] = {};
+            completions[today][h.habit_id] = (h.status === 'Completed');
         });
-
         localStorage.setItem('completions', JSON.stringify(completions));
-        localStorage.setItem('numericValues', JSON.stringify(numericValues));
-        saveTimerStates(timerStates);
 
         return appHabits;
     } catch (err) {
-        console.error('syncHabitsFromSupabase error:', err);
+        console.warn('syncHabitsFromSupabase (MySQL mode) error:', err);
     }
 }
 
-// --- Add habit to Supabase (returns the Supabase UUID) ---
+// --- Tambah habit ke MySQL (menggantikan addHabitToSupabase) ---
 async function addHabitToSupabase(habitData) {
-    const client = getClient();
-    if (!client) return null;
+    if (typeof getMysqlUserId !== 'function') return null;
+    const userId = getMysqlUserId();
+    if (!userId) return null;
 
     try {
-        const { data: { session } } = await client.auth.getSession();
-        if (!session) return null;
-
-        const { data, error } = await client.from('user_habits').insert({
-            user_id: session.user.id,
-            name: habitData.name,
-            goals: habitData.goals,
-            description: habitData.description,
-            category: habitData.category,
-            icon_html: habitData.iconHtml,
-            evaluation: habitData.evaluation,
-            unit: habitData.unit || ''
-        }).select('id').single();
-
-        if (error) {
-            console.error('Supabase habit insert error:', error);
-            return null;
-        }
-
-        return data.id; // Return the Supabase UUID
+        const response = await fetch('http://localhost:3000/api/habits', {
+            method : 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
+            body   : JSON.stringify({
+                name       : habitData.name,
+                description: habitData.description || '',
+                category   : habitData.category || 'other'
+            })
+        });
+        const result = await response.json();
+        if (result.success) return result.habitId; // MySQL auto-increment ID
+        console.error('addHabitToSupabase (MySQL) error:', result.message);
+        return null;
     } catch (err) {
         console.error('addHabitToSupabase error:', err);
         return null;
     }
 }
 
-// --- Update habit in Supabase ---
+// --- Update habit di MySQL (menggantikan updateHabitInSupabase) ---
 async function updateHabitInSupabase(habitId, habitData) {
-    const client = getClient();
-    if (!client) return;
+    if (typeof getMysqlUserId !== 'function') return;
+    const userId = getMysqlUserId();
+    if (!userId) return;
 
     try {
-        const { data: { session } } = await client.auth.getSession();
-        if (!session) return;
-
-        await client.from('user_habits').update({
-            name: habitData.name,
-            goals: habitData.goals,
-            description: habitData.description,
-            category: habitData.category,
-            icon_html: habitData.iconHtml,
-            evaluation: habitData.evaluation,
-            unit: habitData.unit || '',
-            updated_at: new Date().toISOString()
-        }).eq('id', habitId).eq('user_id', session.user.id);
+        await fetch(`http://localhost:3000/api/habits/${habitId}`, {
+            method : 'PUT',
+            headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
+            body   : JSON.stringify({
+                name       : habitData.name,
+                description: habitData.description || '',
+                category   : habitData.category || 'other'
+            })
+        });
     } catch (err) {
         console.error('updateHabitInSupabase error:', err);
     }
 }
 
-// --- Delete habits from Supabase ---
+// --- Hapus habit dari MySQL (menggantikan deleteHabitsFromSupabase) ---
 async function deleteHabitsFromSupabase(habitIds) {
-    const client = getClient();
-    if (!client) return;
+    if (typeof getMysqlUserId !== 'function') return;
+    const userId = getMysqlUserId();
+    if (!userId) return;
 
     try {
-        const { data: { session } } = await client.auth.getSession();
-        if (!session) return;
-
-        await client.from('user_habits')
-            .delete()
-            .eq('user_id', session.user.id)
-            .in('id', habitIds);
+        // Hapus satu per satu (MySQL tidak support batch delete via REST sederhana)
+        await Promise.all(habitIds.map(id =>
+            fetch(`http://localhost:3000/api/habits/${id}`, {
+                method : 'DELETE',
+                headers: { 'X-User-Id': userId }
+            })
+        ));
     } catch (err) {
         console.error('deleteHabitsFromSupabase error:', err);
     }

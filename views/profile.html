@@ -8,7 +8,6 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../css/tailwind.css">
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -201,6 +200,7 @@
         </a>
     </nav>
 
+    <script src="../js/mysql-api.js"></script>
     <script src="../js/habits.js"></script>
     <script src="../js/app.js"></script>
     <script>
@@ -279,17 +279,41 @@
                 };
 
                 document.getElementById('rating-modal-close').onclick = closeModal;
-                
-                // Submit handling
-                document.getElementById('rating-modal-submit').onclick = () => {
+
+                // ─── Submit: Kirim ke MySQL via API ──────────────────────────
+                document.getElementById('rating-modal-submit').onclick = async () => {
                     if (selectedRating === 0) {
-                        showToast("Please select a rating", "error");
+                        showToast("Pilih rating bintang terlebih dahulu!", "error");
                         return;
                     }
-                    closeModal();
-                    setTimeout(() => {
-                        showToast("Thank you for your responses!");
-                    }, 300);
+
+                    const submitBtn = document.getElementById('rating-modal-submit');
+                    const feedbackText = document.getElementById('rating-feedback').value;
+
+                    // Loading state
+                    submitBtn.disabled = true;
+                    submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>Sending...';
+
+                    try {
+                        // Panggil fungsi dari mysql-api.js
+                        const result = await submitFeedback(selectedRating, feedbackText);
+
+                        if (result.success) {
+                            closeModal();
+                            setTimeout(() => {
+                                showToast(result.message || "Terima kasih atas feedback-mu! ⭐");
+                            }, 300);
+                        } else {
+                            showToast(result.message || "Gagal mengirim feedback.", "error");
+                            submitBtn.disabled = false;
+                            submitBtn.innerHTML = 'Submit';
+                        }
+                    } catch (err) {
+                        console.error('Submit feedback error:', err);
+                        showToast("Terjadi kesalahan. Coba lagi.", "error");
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = 'Submit';
+                    }
                 };
             }
 
@@ -480,20 +504,21 @@
 
         async function updateUsername(newName) {
             try {
-                // Update UI first for instant feedback
+                // Update UI
                 document.getElementById('display-username').innerText = newName;
 
-                // Persist to Supabase
-                if (supabaseClient && _currentUser) {
-                    await supabaseClient.from('profiles').update({ full_name: newName }).eq('id', _currentUser.id);
-                    await supabaseClient.auth.updateUser({ data: { full_name: newName } });
-                    showToast(`Username updated to ${newName}!`);
-                } else {
-                    showToast(`Username updated to ${newName}!`);
+                // Update di localStorage (MySQL session)
+                const stored = localStorage.getItem('currentUser');
+                if (stored) {
+                    const user = JSON.parse(stored);
+                    user.fullName = newName;
+                    localStorage.setItem('currentUser', JSON.stringify(user));
                 }
+
+                showToast(`Nama berhasil diperbarui: ${newName}!`);
             } catch (err) {
                 console.error('Update username error:', err);
-                showToast('Failed to update username. Please try again.', 'error');
+                showToast('Gagal memperbarui nama. Coba lagi.', 'error');
             }
         }
 
@@ -505,17 +530,18 @@
         async function resetPassword() {
             if (!_currentUser) return;
             const email = _currentUser.email;
-            if (confirm(`Send a password reset link to ${email}?`)) {
-                try {
-                    const { error } = await supabaseClient.auth.resetPasswordForEmail(email);
-                    if (error) {
-                        showToast('Error: ' + error.message, 'error');
-                    } else {
-                        showToast('Reset link sent! Please check your email.', 'success');
-                    }
-                } catch (err) {
-                    showToast('Failed to send reset link.', 'error');
-                }
+            if (!confirm(`Kirim tautan reset password ke ${email}?`)) return;
+
+            try {
+                const response = await fetch('http://localhost:3000/auth/forgot-password', {
+                    method : 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body   : JSON.stringify({ email })
+                });
+                const result = await response.json();
+                showToast(result.message || 'Link reset terkirim! Cek email kamu.');
+            } catch (err) {
+                showToast('Gagal mengirim link reset. Cek koneksi ke server.', 'error');
             }
         }
 
@@ -525,72 +551,41 @@
 
         async function uploadAvatar(file) {
             if (!_currentUser) {
-                showToast('User not found. Please login again.', 'error');
+                showToast('User tidak ditemukan. Silakan login ulang.', 'error');
                 return;
             }
 
             const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
             if (!validTypes.includes(file.type)) {
-                showToast('Unsupported file format. Use JPG, PNG, WEBP, or GIF.', 'error');
+                showToast('Format tidak didukung. Gunakan JPG, PNG, WEBP, atau GIF.', 'error');
                 return;
             }
-
-            // Validate file size (max 2MB)
             if (file.size > 2 * 1024 * 1024) {
-                showToast('File too large. Maximum 2MB.', 'error');
+                showToast('File terlalu besar. Maksimal 2MB.', 'error');
                 return;
             }
 
-            // Tampilkan loading state
+            // Tampilkan preview lokal langsung (tanpa upload ke cloud)
             const profileImg = document.getElementById('profile-img');
             const loadingIndicator = document.getElementById('avatar-loading');
-            const originalSrc = profileImg.src;
 
             loadingIndicator.classList.remove('hidden');
-            loadingIndicator.classList.add('opacity-100');
-            loadingIndicator.style.opacity = '1';
 
             try {
-                const fileExt = file.name.split('.').pop().toLowerCase();
-                const fileName = `${_currentUser.id}_${Date.now()}.${fileExt}`;
-                const filePath = `public/${fileName}`;
-
-                // Upload ke Supabase Storage
-                const { error: uploadError, data } = await supabaseClient.storage
-                    .from('avatars')
-                    .upload(filePath, file, { upsert: true });
-
-                if (uploadError) throw uploadError;
-
-                // Ambil URL publik
-                const { data: publicData } = supabaseClient.storage
-                    .from('avatars')
-                    .getPublicUrl(filePath);
-
-                const publicUrl = publicData.publicUrl;
-
-                // Tampilkan foto baru langsung di UI
-                profileImg.src = publicUrl;
-
-                // Save URL to profiles table in Supabase
-                await supabaseClient
-                    .from('profiles')
-                    .update({ avatar_url: publicUrl })
-                    .eq('id', _currentUser.id);
-
-                showToast('Profile photo successfully updated!', 'success');
-
+                // Baca file sebagai Data URL untuk preview lokal
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    profileImg.src = e.target.result;
+                    // Simpan ke localStorage sebagai base64 (fallback sederhana)
+                    localStorage.setItem('avatarDataUrl', e.target.result);
+                    showToast('Foto profil berhasil diperbarui!');
+                };
+                reader.readAsDataURL(file);
             } catch (err) {
-                console.error('Upload error:', err);
-                showToast('Failed to upload photo. Please try again.', 'error');
-                // Restore original image on error
-                profileImg.src = originalSrc;
+                console.error('Avatar preview error:', err);
+                showToast('Gagal memuat foto. Coba lagi.', 'error');
             } finally {
-                // Sembunyikan loading state
-                loadingIndicator.style.opacity = '0';
-                setTimeout(() => {
-                    loadingIndicator.classList.add('hidden');
-                }, 300);
+                loadingIndicator.classList.add('hidden');
             }
         }
 
@@ -604,54 +599,39 @@
         });
 
         document.addEventListener('DOMContentLoaded', async () => {
-            // Fetch User Details to display
-            if (supabaseClient) {
-                const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
-                if (user && !userError) {
+            // Load user dari localStorage MySQL session
+            const storedUser = localStorage.getItem('currentUser');
+            if (storedUser) {
+                try {
+                    const user = JSON.parse(storedUser);
                     _currentUser = user;
-                    const name = user.user_metadata?.full_name || 'User';
-                    const email = user.email || 'No email';
 
-                    // Update username dan email di UI
+                    const name  = user.fullName || user.username || 'User';
+                    const email = user.email || '-';
+
                     document.getElementById('display-username').innerText = name;
                     document.getElementById('display-email').innerText = email;
 
-                    // Cek apakah ada avatar yang sudah disimpan
-                    try {
-                        const { data: profile, error: profileError } = await supabaseClient
-                            .from('profiles')
-                            .select('avatar_url')
-                            .eq('id', user.id)
-                            .single();
-
-                        const profileImg = document.getElementById('profile-img');
-
-                        if (profile?.avatar_url && !profileError) {
-                            profileImg.src = profile.avatar_url;
-                        } else {
-                            // Fallback ke avatar otomatis jika belum ada foto
-                            profileImg.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=10B981&color=fff&bold=true`;
-                        }
-                    } catch (profileErr) {
-                        console.error('Error loading profile:', profileErr);
-                        // Gunakan default avatar jika ada error
-                        document.getElementById('profile-img').src = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=10B981&color=fff&bold=true`;
+                    // Avatar: cek localStorage cache, fallback ke ui-avatars.com
+                    const savedAvatar = localStorage.getItem('avatarDataUrl');
+                    const profileImg  = document.getElementById('profile-img');
+                    if (savedAvatar) {
+                        profileImg.src = savedAvatar;
+                    } else {
+                        profileImg.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=10B981&color=fff&bold=true`;
                     }
 
-                    // Show correct auth provider badge
-                    const provider = user.app_metadata?.provider || 'email';
+                    // Auth badge — semua via email sekarang
                     const badge = document.getElementById('auth-badge');
                     if (badge) {
-                        if (provider === 'google') {
-                            badge.innerHTML = '<i class="fa-brands fa-google text-sm mt-px"></i> Google Authenticated';
-                        } else {
-                            badge.innerHTML = '<i class="fa-solid fa-envelope text-sm mt-px"></i> Email Authenticated';
-                        }
+                        badge.innerHTML = '<i class="fa-solid fa-database text-sm mt-px"></i> MySQL Authenticated';
                     }
-                } else {
-                    console.error('Error getting user:', userError);
-                    showToast('Failed to load profile. Please refresh the page.', 'error');
+                } catch (parseErr) {
+                    console.error('Error parsing currentUser:', parseErr);
+                    showToast('Gagal memuat profil. Silakan login ulang.', 'error');
                 }
+            } else {
+                showToast('Sesi tidak ditemukan. Silakan login kembali.', 'error');
             }
 
             renderAchievements();

@@ -7,7 +7,6 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../css/tailwind.css">
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -74,6 +73,17 @@
         </div>
     </section>
 
+    <!-- [MySQL Sync] Panel Data Sinkron dari Database -->
+    <section class="px-6 mt-4 animate-slide-up delay-350" id="mysql-sync-section" style="display:none;">
+        <div class="flex items-center gap-2 mb-3">
+            <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+            <h4 class="text-xs font-bold uppercase tracking-wider text-gray-400">Database Sync (MySQL)</h4>
+        </div>
+        <div id="mysql-habit-list">
+            <!-- Diisi oleh fetchHabitsWithLogs() dari mysql-api.js -->
+        </div>
+    </section>
+
     <!-- Tab Bar -->
     <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-6 py-2 flex items-center justify-between z-50 shadow-[0_-4px_25px_rgba(0,0,0,0.05)] text-gray-400">
         <a href="index.html" class="nav-item active:scale-90 transition-transform flex flex-col items-center gap-1 p-2 w-16">
@@ -101,6 +111,7 @@
         </a>
     </nav>
 
+    <script src="../js/mysql-api.js"></script>
     <script src="../js/habits.js"></script>
     <script src="../js/app.js"></script>
     <script>
@@ -245,6 +256,50 @@
         function selectCalDate(day) {
             calSelectedDay = day;
             renderCalendarFull();
+
+            // ─── Sinkronisasi MySQL: Ambil data habit + log untuk tanggal ini ───
+            const selDate = new Date(calYear, calMonth, day);
+            const selDateStr = getLocalDateString(selDate);
+            syncMysqlForDate(selDateStr);
+        }
+
+        // ─── Fungsi Sinkronisasi MySQL ──────────────────────────────
+        // Dipanggil setiap kali user memilih tanggal di kalender.
+        // Mengambil data habits + status log dari MySQL via LEFT JOIN.
+        async function syncMysqlForDate(dateStr) {
+            const mysqlSection = document.getElementById('mysql-sync-section');
+            const mysqlList = document.getElementById('mysql-habit-list');
+            if (!mysqlSection || !mysqlList) return;
+
+            // Tampilkan section dengan loading state
+            mysqlSection.style.display = 'block';
+            mysqlList.innerHTML = `
+                <div class="flex items-center justify-center gap-2 py-6 text-gray-400">
+                    <i class="fa-solid fa-spinner fa-spin"></i>
+                    <span class="text-sm">Memuat data dari database...</span>
+                </div>`;
+
+            try {
+                // Panggil API fetchHabitsWithLogs dari mysql-api.js
+                const result = await fetchHabitsWithLogs(dateStr);
+
+                if (result.success && result.habits.length > 0) {
+                    // Render tabel sinkronisasi
+                    renderSyncedHabits('mysql-habit-list', result.habits, dateStr, 'calendar');
+                } else if (result.success && result.habits.length === 0) {
+                    mysqlList.innerHTML = `
+                        <div class="text-center py-6 text-gray-400">
+                            <p class="text-sm">Belum ada habit di MySQL untuk tanggal ini.</p>
+                            <p class="text-xs mt-1">Tambahkan habit melalui halaman Home.</p>
+                        </div>`;
+                } else {
+                    // Jika tidak login MySQL atau server tidak aktif, sembunyikan section
+                    mysqlSection.style.display = 'none';
+                }
+            } catch (err) {
+                console.warn('MySQL sync unavailable (server mungkin tidak aktif):', err);
+                mysqlSection.style.display = 'none';
+            }
         }
     </script>
 </body>

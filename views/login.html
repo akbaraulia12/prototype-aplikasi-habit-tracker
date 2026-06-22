@@ -8,7 +8,6 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../css/tailwind.css">
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -30,9 +29,9 @@
         class="w-full max-w-md bg-white rounded-3xl p-8 shadow-sm border border-gray-100 animate-slide-up relative overflow-hidden">
 
         <!-- Decorative blob -->
-        <div class="absolute -top-16 -right-16 w-32 h-32 rounded-full opacity-10 theme-bg-update"
+        <div class="absolute -top-16 -right-16 w-32 h-32 rounded-full opacity-10 theme-bg-update pointer-events-none"
             style="background-color: var(--primary);"></div>
-        <div class="absolute -bottom-16 -left-16 w-32 h-32 rounded-full opacity-10 theme-bg-update"
+        <div class="absolute -bottom-16 -left-16 w-32 h-32 rounded-full opacity-10 theme-bg-update pointer-events-none"
             style="background-color: var(--primary);"></div>
 
         <div class="text-center mb-8 relative z-10">
@@ -120,6 +119,54 @@
             });
 
             document.getElementById('login-form').addEventListener('submit', handleEmailLogin);
+
+            // Tutup modal forgot password
+            const forgotCloseBtn = document.getElementById('forgot-modal-close');
+            if (forgotCloseBtn) {
+                forgotCloseBtn.addEventListener('click', () => {
+                    document.getElementById('forgot-modal').classList.add('hidden');
+                });
+            }
+
+            // Submit forgot password ke backend MySQL
+            const forgotSubmitBtn = document.getElementById('forgot-submit');
+            if (forgotSubmitBtn) {
+                forgotSubmitBtn.addEventListener('click', async (e) => {
+                    e.preventDefault();
+
+                    const email = document.getElementById('forgot-email-input').value.trim();
+                    if (!email) {
+                        showToast('Masukkan alamat email kamu.', 'error');
+                        return;
+                    }
+
+                    const btn = document.getElementById('forgot-submit');
+                    btn.disabled = true;
+                    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>Mengirim...';
+
+                    try {
+                        const response = await fetch('http://localhost:3000/auth/forgot-password', {
+                            method : 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body   : JSON.stringify({ email })
+                        });
+                        const result = await response.json();
+
+                        if (response.ok && result.success) {
+                            document.getElementById('forgot-modal').classList.add('hidden');
+                            showToast(result.message || 'Jika email terdaftar, link reset telah dikirim.', 'success');
+                        } else {
+                            showToast(result.message || 'Terjadi kesalahan saat mengirim link.', 'error');
+                        }
+                    } catch (err) {
+                        console.error("Fetch error:", err);
+                        showToast('Tidak dapat terhubung ke server. Pastikan backend menyala.', 'error');
+                    } finally {
+                        btn.disabled = false;
+                        btn.innerHTML = 'Kirim Link Reset';
+                    }
+                });
+            }
         });
 
         function updateColors(theme) {
@@ -153,20 +200,39 @@
 
         async function handleForgotPassword(e) {
             e.preventDefault();
-            const email = prompt("Enter your email address to receive a password reset link:");
-            if (!email || !email.trim()) return;
-            try {
-                const { error } = await supabaseClient.auth.resetPasswordForEmail(email.trim());
-                if (error) {
-                    showToast('Error: ' + error.message, 'error');
-                } else {
-                    showToast('Password reset link sent! Please check your email.', 'success');
-                }
-            } catch (err) {
-                showToast('Failed to send reset link. Please try again.', 'error');
-            }
+            // Tampilkan modal forgot password (bukan prompt() browser)
+            document.getElementById('forgot-modal').classList.remove('hidden');
+            document.getElementById('forgot-email-input').value =
+                document.getElementById('email').value || ''; // Pre-fill dari field email
+            document.getElementById('forgot-email-input').focus();
         }
     </script>
+
+    <!-- ── Modal Forgot Password ───────────────────────────────── -->
+    <div id="forgot-modal"
+        class="hidden fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 px-6">
+        <div class="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-base font-bold text-gray-800">Reset Password</h3>
+                <button id="forgot-modal-close" class="text-gray-400 hover:text-gray-600 transition">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <p class="text-sm text-gray-500 mb-4">
+                Masukkan email akun kamu. Kami akan mengirimkan tautan reset password ke inbox kamu.
+            </p>
+            <input type="email" id="forgot-email-input"
+                class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm
+                       focus:outline-none focus:ring-2 focus:ring-green-400 transition mb-4"
+                placeholder="you@example.com">
+            <button id="forgot-submit"
+                class="w-full py-3 text-white font-bold rounded-xl transition"
+                style="background-color: var(--primary);">
+                Kirim Link Reset
+            </button>
+        </div>
+    </div>
+
 </body>
 
-</html>
+</html>

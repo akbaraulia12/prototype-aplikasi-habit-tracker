@@ -1,8 +1,11 @@
-// Set up Supabase Client
-const SUPABASE_URL = 'https://loovtbdzjgpqamhssnue.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxvb3Z0YmR6amdwcWFtaHNzbnVlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUyMDI3MTcsImV4cCI6MjA5MDc3ODcxN30.StgTqDRbsasnEq7gfnkF4P1bZTaV8pf3BmPIhUPFI4Q';
-// Ensure Supabase JS CDN is loaded in HTML before app.js
-const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+// ================================================================
+// app.js — HabitFlow Frontend Core
+// Auth: MySQL backend (http://localhost:3000) + localStorage session
+// Supabase: DIHAPUS TOTAL — migrasi ke Full Custom Backend
+// ================================================================
+
+// Stub agar kode lama yang masih referensikan supabaseClient tidak crash
+const supabaseClient = null;
 
 // Initialize theme
 function initTheme() {
@@ -184,10 +187,8 @@ function initApp() {
         });
     });
 
-    // Setup Supabase Auth Listener
-    if (supabaseClient) {
-        setupAuthListener();
-    }
+    // Route protection: cek session MySQL di localStorage
+    handleRouteProtection();
 }
 
 // initHeroSlider removed — Swiper.js handles the hero slider in index.html
@@ -307,54 +308,35 @@ if (document.readyState === 'loading') {
     initApp();
 }
 
-// --- Supabase Authentication Logic --- //
+// ================================================================
+// AUTH LOGIC — Pure MySQL (Supabase telah dihapus)
+// ================================================================
 
-async function setupAuthListener() {
-    const { data: { session }, error } = await supabaseClient.auth.getSession();
-    handleRouteProtection(session);
+// Tidak ada lagi setupAuthListener() — auth state dikelola via localStorage
 
-    supabaseClient.auth.onAuthStateChange((event, session) => {
-        if (event === 'SIGNED_IN') {
-            console.log('User signed in');
-            handleRouteProtection(session);
-        } else if (event === 'SIGNED_OUT') {
-            console.log('User signed out');
-            handleRouteProtection(null);
-        }
-    });
-}
-
-function handleRouteProtection(session) {
+function handleRouteProtection() {
     const currentPath = window.location.pathname.toLowerCase();
-    const isPublicRoute = currentPath.includes('login.html') || currentPath.includes('register.html') || currentPath.includes('intro.html');
+    const isPublicRoute = currentPath.includes('login.html')
+        || currentPath.includes('register.html')
+        || currentPath.includes('intro.html')
+        || currentPath.includes('reset-password.html');
     const isAdminRoute = currentPath.includes('admin_dashboard.html');
     const isAdmin = localStorage.getItem('isAdmin') === 'true';
 
-    // Cek login via MySQL/Node.js backend (tersimpan di localStorage)
+    // Session dari MySQL login (disimpan saat /api/login berhasil)
     const mysqlUser = localStorage.getItem('currentUser');
-    const isMysqlLoggedIn = !!mysqlUser;
+    const isLoggedIn = !!mysqlUser || isAdmin;
 
     if (isAdminRoute) {
-        if (!isAdmin) {
-            window.location.href = 'login.html';
-        }
+        if (!isAdmin) window.location.href = 'login.html';
         return;
     }
 
-    // Dianggap sudah login jika: ada Supabase session, ATAU ada data user MySQL, ATAU admin
-    const isLoggedIn = session || isMysqlLoggedIn || isAdmin;
-
     if (!isLoggedIn && !isPublicRoute) {
-        // Belum login dan berada di halaman protected -> redirect ke login/intro
         const introSeen = localStorage.getItem('introSeen') === 'true';
         window.location.href = introSeen ? 'login.html' : 'intro.html';
     } else if (isLoggedIn && isPublicRoute && !isAdminRoute) {
-        // Sudah login tapi masih di halaman publik -> redirect ke index
-        if (isAdmin) {
-            window.location.href = 'admin_dashboard.html';
-        } else {
-            window.location.href = 'index.html';
-        }
+        window.location.href = isAdmin ? 'admin_dashboard.html' : 'index.html';
     }
 }
 
@@ -474,101 +456,72 @@ async function handleEmailRegister(event) {
     const originalText = btn.innerText;
 
     const usernameRaw = document.getElementById('username').value;
-    const nameRaw = document.getElementById('name').value;
-    const emailRaw = document.getElementById('email').value;
+    const nameRaw     = document.getElementById('name') ? document.getElementById('name').value : usernameRaw;
+    const emailRaw    = document.getElementById('email').value;
     const passwordRaw = document.getElementById('password').value;
-    const confirmPasswordEl = document.getElementById('confirm-password');
+    const confirmPasswordEl  = document.getElementById('confirm-password');
     const confirmPasswordRaw = confirmPasswordEl ? confirmPasswordEl.value : passwordRaw;
 
     // === Input Sanitization ===
     if (typeof sanitizeInput === 'function') {
         const usernameCheck = sanitizeInput(usernameRaw, 'Username');
-        const nameCheck = sanitizeInput(nameRaw, 'Nama');
-        const emailCheck = sanitizeInput(emailRaw, 'Email');
-
-        const allThreats = [
-            ...usernameCheck.threats,
-            ...nameCheck.threats,
-            ...emailCheck.threats
-        ];
-
+        const nameCheck     = sanitizeInput(nameRaw, 'Nama');
+        const emailCheck    = sanitizeInput(emailRaw, 'Email');
+        const allThreats    = [...usernameCheck.threats, ...nameCheck.threats, ...emailCheck.threats];
         if (allThreats.length > 0) {
             showToast('Invalid input: ' + allThreats.join(', '), 'error');
             return;
         }
-
-        // Validate email format
         if (typeof isValidEmail === 'function' && !isValidEmail(emailRaw.trim())) {
             showToast('Invalid email format.', 'error');
             return;
         }
     }
 
-    // === Password Strength Validation ===
+    // === Password Strength ===
     if (typeof validatePassword === 'function') {
         const pwdResult = validatePassword(passwordRaw);
         if (!pwdResult.isValid) {
-            showToast('Password does not meet security requirements:\n• ' + pwdResult.errors.join('\n• '), 'error');
+            showToast('Password tidak memenuhi syarat:\n• ' + pwdResult.errors.join('\n• '), 'error');
             return;
         }
     }
 
-    // === Confirm Password Match ===
     if (passwordRaw !== confirmPasswordRaw) {
-        showToast('Password and confirm password do not match!', 'error');
+        showToast('Password dan konfirmasi password tidak cocok!', 'error');
         return;
     }
 
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Loading...';
-    btn.disabled = true;
+    btn.disabled  = true;
 
-    const username = usernameRaw.trim();
-    const name = nameRaw.trim();
-    const email = emailRaw.trim();
-    const password = passwordRaw;
+    try {
+        // === Register via MySQL Backend ===
+        const response = await fetch('http://localhost:3000/api/register', {
+            method : 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body   : JSON.stringify({
+                username: usernameRaw.trim(),
+                fullName: nameRaw.trim(),
+                email   : emailRaw.trim(),
+                password: passwordRaw
+            })
+        });
 
-    const { data, error } = await supabaseClient.auth.signUp({
-        email: email,
-        password: password,
-        options: {
-            data: {
-                full_name: name,
-                username: username
-            }
+        const result = await response.json();
+
+        if (result.success) {
+            showToast('Akun berhasil dibuat! Silakan login.');
+            setTimeout(() => window.location.href = 'login.html', 1000);
+        } else {
+            showToast(result.message || 'Registrasi gagal.', 'error');
+            btn.innerText = originalText;
+            btn.disabled  = false;
         }
-    });
-
-    if (error) {
-        showToast("Registration failed: " + error.message, 'error');
+    } catch (networkErr) {
+        showToast('Tidak dapat terhubung ke server. Pastikan server backend berjalan.', 'error');
         btn.innerText = originalText;
-        btn.disabled = false;
-    } else if (data.user && !data.session) {
-        // Supabase returns user but no session when email already exists (repeated signup)
-        // or when email confirmation is pending
-        showToast("This email is already registered. Please log in or use 'Forgot Password'.", 'error');
-        btn.innerText = originalText;
-        btn.disabled = false;
-        setTimeout(() => window.location.href = 'login.html', 2000);
-    } else {
-        // Successful registration — user is auto-confirmed
-        if (data.user) {
-            try {
-                await supabaseClient
-                    .from('profiles')
-                    .upsert({
-                        id: data.user.id,
-                        full_name: name,
-                        username: username,
-                        email: email
-                    }, { onConflict: 'id' });
-            } catch (profileErr) {
-                console.error('Profile save error:', profileErr);
-            }
-        }
-        showToast('Account created successfully! Please log in.');
-        btn.innerText = originalText;
-        btn.disabled = false;
-        window.location.href = 'login.html';
+        btn.disabled  = false;
     }
 }
 
@@ -580,18 +533,19 @@ async function handleSignOut() {
         'Are you sure you want to log out of your account?',
         'Log Out',
         'bg-red-500 hover:bg-red-600',
-        async () => {
+        () => {
             try {
                 document.body.style.opacity = '0';
                 document.body.style.transition = 'opacity 0.5s ease';
+                // Hapus semua session data dari localStorage
                 localStorage.removeItem('isAdmin');
                 localStorage.removeItem('currentUser');
-                await supabaseClient.auth.signOut();
+                // Tidak perlu call Supabase signOut lagi
                 window.location.href = 'login.html';
             } catch (error) {
                 console.error('Logout error:', error);
                 document.body.style.opacity = '1';
-                showToast("Failed to log out. Please try again.", "error");
+                showToast('Gagal logout. Coba lagi.', 'error');
             }
         }
     );
